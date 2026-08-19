@@ -1,0 +1,58 @@
+Package: plsSEMflow
+Type: Package
+Title: Integrated Partial Least Squares Structural Equation Modeling Workflows
+Version: 0.1.0.9000
+Authors@R: c(
+    person(given = "Walter Esfrain", family = "Pereira",
+           email = "walterufpb@yahoo.com.br",
+           role = c("aut", "cre", "cph"),
+           comment = c(ORCID = "0000-0003-1085-0191")),
+    person(given = "Magali Haidee", family = "Pereira Martinez",
+           role = "aut",
+           comment = c(ORCID = "0009-0009-5419-959X"))
+  )
+Description: Provides an integrated and auditable workflow for partial least
+    squares structural equation modeling (PLS-SEM), with a native R PLS-PM
+    engine for continuous linear models and optional adapters to established
+    engines including 'cSEM', 'seminr', 'plssem', 'plspm', and 'blavaan'.
+    The package emphasizes explicit measurement and structural specification,
+    bootstrap uncertainty, predictive assessment, multigroup analysis,
+    nonlinear and multilevel extensions, publication-ready tables and figures,
+    agronomic teaching datasets, and reproducible validation workflows.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: false
+Depends: R (>= 4.1.0)
+Imports:
+    stats,
+    utils,
+    grid
+Suggests:
+    cSEM,
+    seminr,
+    plssem,
+    plspm,
+    lavaan,
+    blavaan,
+    ggplot2,
+    ggrepel,
+    scales,
+    flextable,
+    gt,
+    openxlsx,
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0),
+    future,
+    future.apply,
+    reticulate,
+    jsonlite,
+    DiagrammeR,
+    igraph,
+    quarto
+Config/testthat/edition: 3
+Roxygen: list(markdown = TRUE)
+VignetteBuilder: knitr
+URL: https://github.com/walter-esfrain/plsSEMflow
+BugReports: https://github.com/walter-esfrain/plsSEMflow/issues
+Config/roxygen2/version: 8.1.0

@@ -1,0 +1,37 @@
+---
+title: "PLS-SEM analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(plsSEMflow)
+```
+
+# Scientific question
+
+# Data and unit of observation
+
+# Measurement model
+
+# Structural model
+
+# Estimation
+
+# Bootstrap uncertainty
+
+# Measurement assessment
+
+# Structural assessment
+
+# Prediction
+
+# Sensitivity and advanced analyses
+
+# Publication figures and tables
+
+# Reproducibility
+
+```{r}
+sessionInfo()
+```

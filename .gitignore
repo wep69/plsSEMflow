@@ -1,0 +1,27 @@
+# R
+.Rhistory
+.Rapp.history
+.RData
+.Ruserdata
+.Rproj.user/
+
+# Package build
+*.tar.gz
+*.Rcheck/
+doc/
+docs/
+Meta/
+inst/doc/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+*.Rproj
+
+# Validation artifacts
+*_problems/
+testthat-problems.rds
+*.log

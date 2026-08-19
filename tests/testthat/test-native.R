@@ -1,0 +1,10 @@
+test_that("native engine estimates a simple agronomic model", {
+  set.seed(1); n<-150; a<-rnorm(n); b<-.6*a+rnorm(n,.0,.8)
+  d<-data.frame(a1=a+rnorm(n,0,.2),a2=a+rnorm(n,0,.2),b1=b+rnorm(n,0,.2),b2=b+rnorm(n,0,.2))
+  m<-pls_model(pls_measurement(pls_reflective("A",c("a1","a2")),pls_reflective("B",c("b1","b2"))),pls_structural(pls_path("A","B")))
+  f<-pls_fit(m,d,engine="native")
+  expect_s3_class(f,"plssem_fit")
+  expect_true(f$native$converged)
+  expect_gt(f$native$paths$estimate[1],0.3)
+  expect_true(is.finite(f$native$r2["B"]))
+})

@@ -1,0 +1,1405 @@
+---
+title: "plsSEMflow: From Agronomic Questions to Advanced PLS-SEM Workflows"
+author: "plsSEMflow development team"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{plsSEMflow: From Agronomic Questions to Advanced PLS-SEM Workflows}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 8, fig.height = 5.5)
+library(plsSEMflow)
+```
+
+
+# 1. Why this tutorial exists
+
+PLS-SEM becomes difficult when construct conceptualization, measurement specification, structural hypotheses, resampling, prediction, heterogeneity, nonlinear effects, ordinal indicators, multilevel sampling, and publication requirements are introduced simultaneously. The difficulty is not solved by learning a long list of software buttons. It is solved by keeping the scientific logic visible throughout the workflow.
+
+`plsSEMflow` therefore follows one rule:
+
+**Start with the agronomic mechanism and the meaning of each construct. Then specify the measurement model, specify the structural model, estimate it, diagnose it, quantify uncertainty, assess prediction, and only then interpret the biological or management implications.**
+
+The package is an integrator. Its native R engine provides a transparent continuous linear PLS-PM core for teaching, reproducibility, bootstrap inference, and publication output. Optional engines extend the same workflow to PLSc, ordinal indicators, nonlinear relations, multigroup invariance, multilevel structures, and Bayesian companion analyses.
+
+The examples in this tutorial are predominantly agronomic. They use frozen simulated teaching datasets bundled with the package. Their purpose is methodological instruction. They are **not field evidence**, and their numerical results must not be interpreted as findings about real crops, soils, farms, regions, or technologies.
+
+# 2. Learning objectives
+
+After completing the tutorial, the reader should be able to:
+
+1. distinguish a common-factor interpretation from a composite/formative interpretation;
+2. translate an agronomic mechanism into a measurement model and a structural model;
+3. audit indicator scales, missingness, unit of observation, and construct definitions before estimation;
+4. fit a continuous linear PLS-PM model with the native R engine;
+5. interpret outer loadings and outer weights without using automatic deletion rules;
+6. calculate reliability, AVE, HTMT, formative VIF, structural VIF, R-squared, and f-squared where appropriate;
+7. choose the number of bootstrap replications rather than accepting a hidden package constant;
+8. report bootstrap confidence intervals for path coefficients, loadings, and weights;
+9. place bootstrap confidence intervals directly in publication tables and path diagrams;
+10. decompose direct and indirect effects in mediation models;
+11. distinguish a two-stage score-based moderation sensitivity analysis from a dedicated latent-interaction estimator;
+12. investigate nonlinear relations without silently relabeling polynomial score regression as nonlinear PLS-SEM;
+13. use repeated cross-validation to distinguish explanatory fit from predictive usefulness;
+14. work with ordinal indicators through a compatible backend;
+15. compare predefined agronomic groups only after considering measurement invariance;
+16. use multilevel PLS-SEM when farms, fields, municipalities, seasons, or other clusters generate hierarchical data;
+17. use endogeneity diagnostics only when the scientific design provides a reason for them;
+18. use Bayesian SEM as a clearly labeled companion analysis rather than calling it Bayesian PLS-SEM;
+19. compare engines without assuming that numerically different parameterizations should be identical;
+20. generate editable, publication-oriented tables and vector/raster figures with uncertainty documented in captions;
+21. audit a PLS-SEM analysis from the perspective of a reviewer;
+22. reproduce the complete workflow using only R for the core analysis.
+
+# 3. Package architecture in one map
+
+| Stage | Scientific question | Main functions |
+|---|---|---|
+| 1. Data and concepts | What is the observational unit, and what do the constructs mean? | `pls_data()`, `pls_datasets()`, `pls_audit()` |
+| 2. Measurement | Which indicators reflect a factor, and which indicators form a composite? | `pls_reflective()`, `pls_composite()`, `pls_formative()`, `pls_higher_order()` |
+| 3. Structure | Which agronomic mechanisms are being hypothesized? | `pls_path()`, `pls_mediation()`, `pls_moderation()`, `pls_quadratic()`, `pls_nonlinear()` |
+| 4. Model | How are measurement and structural components combined? | `pls_measurement()`, `pls_structural()`, `pls_model()`, `pls_syntax()` |
+| 5. Estimation | Which engine is scientifically and computationally appropriate? | `pls_fit()`, `pls_capabilities()`, `pls_backend_object()` |
+| 6. Measurement assessment | Is the measurement representation defensible? | `pls_measurement_assess()`, `pls_table()` |
+| 7. Structural assessment | What are the path estimates, R2, f2, and collinearity? | `pls_structural_assess()`, `pls_assess()` |
+| 8. Bootstrap | How uncertain are the coefficients? | `pls_bootstrap()`, `pls_boot_ci()` |
+| 9. Effects | What are the direct and indirect effects? | `pls_effects()` |
+| 10. Prediction | Does the model predict held-out observations? | `pls_predict()`, `pls_cvpat()` |
+| 11. Heterogeneity | Do predefined groups differ? | `pls_mga()`, `pls_micom()`, `pls_mgd()` |
+| 12. Nonlinear/complex | Is the linear structural relation adequate? | `pls_moderation_test()`, `pls_nonlinear_test()`, `pls_nonlinear_effects()` |
+| 13. Multilevel/ordinal | Does the sampling structure require a specialized estimator? | `pls_multilevel()`, `pls_ordinal()` |
+| 14. Endogeneity/IPMA | Are structural conclusions sensitive to endogeneity or priority mapping? | `pls_endogeneity()`, `pls_ipma()` |
+| 15. Bayesian companion | Do compatible reflective models support similar conclusions under a Bayesian CB-SEM formulation? | `pls_bayes_compare()` |
+| 16. Publication | How are results communicated without losing uncertainty? | `pls_plot()`, `pls_table()`, `pls_save_plot()`, `pls_export_xlsx()` |
+| 17. Reproducibility | Can another analyst reproduce the decisions? | `pls_report()`, `pls_export_external()`, `pls_compare_external()` |
+| 18. Teaching/review | How can the workflow be taught or audited? | `pls_tour()`, `pls_audit()` |
+
+The sequence is deliberate. A user should not start with multigroup analysis because the software offers a button for it, or with a nonlinear relation because the scatterplot looks curved. Each extension must answer a scientific question that exists in the design or mechanism.
+
+# 4. Agronomic teaching datasets
+
+```{r datasets}
+pls_datasets()
+```
+
+The package currently provides six frozen teaching datasets.
+
+| Dataset | Agronomic setting | Main methodological role |
+|---|---|---|
+| `soil_crop` | soil quality, plant nutrition, crop vigor, and yield | reflective PLS-SEM, mediation, prediction, bootstrap |
+| `precision_adoption` | farmer adoption of precision-agriculture technologies | ordinal indicators, multigroup analysis |
+| `irrigation_stress` | irrigation management, water efficiency, crop stress, yield stability | moderation and nonlinear sensitivity |
+| `bioinput_adoption` | management capacity, perceived bioinput efficacy, adoption, crop response | composite/formative measurement and mediation |
+| `multilevel_farms` | farms nested within municipalities | multilevel PLS-SEM |
+| `ordinal_soil_health` | ordinal assessment of soil health, root condition, resilience, and yield stability | ordinal PLS/PLSc |
+
+# Part I. Foundations: from agronomic mechanism to a PLS-SEM model
+
+# 5. Start with the mechanism, not with the software
+
+Consider the `soil_crop` teaching dataset. The scientific narrative is intentionally simple enough to teach, but rich enough to expose the main PLS-SEM decisions.
+
+A plausible agronomic mechanism is:
+
+- soil physical and chemical quality affects nutrient status;
+- soil quality and nutrient status influence crop vigor;
+- vigor contributes to final yield performance;
+- nutrient status may also have a direct association with final yield performance.
+
+This narrative already contains several assumptions. It assumes an ordering among constructs. It assumes that the measured indicators are meaningful representations of those constructs. It also assumes that the unit of observation is suitable for the structural interpretation.
+
+Load the data.
+
+```{r soil-data}
+d <- pls_data("soil_crop")
+str(d)
+head(d)
+```
+
+The variables are expressed on recognizable agronomic scales. For example, organic matter, cation-exchange capacity, water-holding capacity, leaf nutrient concentrations, NDVI, LAI, chlorophyll status, grain yield, biomass, and harvest index are not interchangeable observations. In the teaching model, each group is used as a reflective representation of an underlying construct. In a real study, that decision must be defended biologically and statistically.
+
+## 5.1 Why construct conceptualization matters
+
+Suppose `SOIL` is modeled as a reflective common factor measured by soil organic matter, CEC, and water-holding capacity. That means the model treats the indicators as manifestations of a shared underlying concept. This is a substantive claim.
+
+If, instead, the goal were to build a soil-management index in which liming quality, residue retention, cover cropping, and traffic control jointly **form** the index, a composite or formative specification would often be more coherent.
+
+`plsSEMflow` therefore forces the analyst to write the intent explicitly.
+
+```{r soil-measurement}
+mm <- pls_measurement(
+  pls_reflective("SOIL",  c("soil_om", "soil_cec", "soil_whc")),
+  pls_reflective("NUTR",  c("leaf_n", "leaf_p", "leaf_k")),
+  pls_reflective("VIGOR", c("ndvi", "lai", "chlorophyll")),
+  pls_reflective("YIELD", c("grain_yield", "biomass", "harvest_index"))
+)
+```
+
+The corresponding structural relations are then written separately.
+
+```{r soil-structural}
+sm <- pls_structural(
+  pls_path("SOIL", "NUTR"),
+  pls_path("SOIL", "VIGOR"),
+  pls_path("NUTR", "VIGOR"),
+  pls_path("NUTR", "YIELD"),
+  pls_path("VIGOR", "YIELD")
+)
+
+m_soil <- pls_model(mm, sm, name = "Soil-nutrition-vigor-yield teaching model")
+m_soil
+```
+
+The model can also be exported to cSEM-style syntax.
+
+```{r soil-syntax}
+cat(pls_syntax(m_soil, dialect = "cSEM"))
+```
+
+The syntax is a communication device, not a substitute for the conceptual explanation.
+
+# 6. Audit before fitting
+
+```{r soil-audit}
+pls_audit(m_soil, data = d)
+```
+
+The pre-fit audit is deliberately conservative. It does not tell the analyst whether the model is scientifically true. It checks whether the declared indicators exist, whether the construct definitions are syntactically coherent, whether missing data are present, and whether obvious data-support problems require attention.
+
+In a real agronomic dataset, the analyst should additionally document:
+
+1. the experimental or observational unit;
+2. whether repeated observations from the same plot or farm are present;
+3. whether treatment assignment or management exposure was randomized;
+4. whether spatial or temporal dependence exists;
+5. whether the indicators were measured before, during, or after the outcomes they are supposed to explain;
+6. whether the causal language used in the manuscript is supported by the design.
+
+PLS-SEM does not convert observational association into causal identification.
+
+# 7. Fit the native continuous linear model
+
+```{r soil-fit}
+fit_soil <- pls_fit(
+  m_soil,
+  d,
+  engine = "native",
+  estimator = "PLS"
+)
+
+fit_soil
+```
+
+The native engine implements a transparent PLS-PM workflow with Mode A for reflective blocks and Mode B for composites/formative blocks. The purpose of this engine is to provide a dependable R-only core for continuous linear models, teaching, reproducibility, bootstrap inference, and validation against external engines.
+
+For PLSc, ordinal indicators, advanced nonlinear estimators, and multilevel structures, use a compatible optional backend rather than silently pretending that the native algorithm estimates a method it does not implement.
+
+Inspect capabilities first.
+
+```{r capabilities}
+pls_capabilities()
+```
+
+# 8. Measurement model assessment
+
+```{r measurement-assessment}
+ma <- pls_measurement_assess(fit_soil)
+ma$loadings
+ma$reliability
+ma$htmt
+```
+
+## 8.1 Outer loadings
+
+Loadings describe the association between each indicator and the estimated construct score under the fitted model. A loading that is smaller than a conventional heuristic is a reason to investigate, not an instruction to delete.
+
+Before removing an agronomic indicator, ask:
+
+- Does the indicator represent a distinct scientific facet that would otherwise disappear from the construct?
+- Is the weak loading caused by restricted range, measurement error, season-specific behavior, or a unit problem?
+- Does removal materially improve reliability or AVE?
+- Does removal change the scientific meaning of the construct?
+- Was the deletion decision planned or data-driven?
+
+Automatic indicator pruning can turn a broad agronomic construct into a narrower construct that merely fits better statistically.
+
+## 8.2 Reliability and AVE
+
+```{r reliability-table}
+pls_table(fit_soil, component = "reliability")
+```
+
+Cronbach's alpha, composite reliability, and AVE answer different questions. Report them as diagnostics, not as a checklist that proves validity.
+
+## 8.3 Discriminant validity
+
+```{r htmt-plot, eval=FALSE}
+pls_plot(fit_soil, type = "htmt")
+```
+
+HTMT is particularly useful when two agronomic constructs are conceptually close. For example, crop vigor and final yield performance may be strongly related. A high HTMT value should trigger a substantive review of whether the constructs are truly distinct, whether indicators overlap conceptually, and whether a higher-order structure would be more defensible.
+
+# 9. Structural model assessment
+
+```{r structural-assessment}
+sa <- pls_structural_assess(fit_soil)
+sa$paths
+sa$r2
+sa$f2
+sa$vif
+```
+
+Interpretation should proceed in this order:
+
+1. inspect structural collinearity;
+2. inspect path estimates;
+3. quantify uncertainty using bootstrap;
+4. examine R-squared as explained variance, not as proof of mechanism;
+5. examine f-squared as a change in explained variance associated with omitting a predictor;
+6. consider biological relevance, not only statistical detectability;
+7. assess prediction separately.
+
+# Part II. Bootstrap uncertainty as a first-class layer
+
+# 10. The user chooses the number of bootstrap replications
+
+`plsSEMflow` does not impose a universal final bootstrap size. The analyst chooses `R` according to the purpose of the run, computational cost, desired Monte Carlo stability, and reporting standard.
+
+A small value can be used while learning the syntax:
+
+```{r bootstrap-demo}
+boot_demo <- pls_bootstrap(
+  fit_soil,
+  R = 99,
+  seed = 260819,
+  level = 0.95,
+  interval = "percentile"
+)
+```
+
+For final inference, use a substantially larger value selected for the study. The following is intentionally not evaluated in the vignette:
+
+```{r bootstrap-final, eval=FALSE}
+boot_final <- pls_bootstrap(
+  fit_soil,
+  R = 10000,
+  seed = 260819,
+  level = 0.95,
+  interval = "percentile"
+)
+```
+
+The current SmartPLS documentation describes 1,000 resamples as a possible initial assessment and approximately 10,000 for final results, while allowing the user to choose settings. `plsSEMflow` follows the same principle of explicit user control rather than hard-coding a single value.
+
+## 10.1 Path coefficient intervals
+
+```{r bootstrap-path-ci}
+pls_boot_ci(boot_demo, component = "path")
+```
+
+## 10.2 Loadings and weights
+
+```{r bootstrap-loading-ci}
+pls_boot_ci(boot_demo, component = "loading")
+pls_boot_ci(boot_demo, component = "weight")
+```
+
+The bootstrap object stores the replication count, seed, interval method, confidence level, and draw matrix. These metadata travel into the publication table and figure layers.
+
+# 11. Publication tables with bootstrap CIs
+
+A table can receive an existing bootstrap object.
+
+```{r table-paths-boot}
+pls_table(
+  fit_soil,
+  component = "paths",
+  boot = boot_demo,
+  digits = 3
+)
+```
+
+Or it can calculate bootstrap intervals directly.
+
+```{r table-paths-boot-direct, eval=FALSE}
+pls_table(
+  fit_soil,
+  component = "paths",
+  boot = TRUE,
+  R = 10000,
+  seed = 260819,
+  level = 0.95,
+  interval = "percentile"
+)
+```
+
+This design is intentional. A coefficient table that displays uncertainty should make the resampling settings traceable.
+
+# 12. Publication path diagrams with bootstrap CIs
+
+```{r plot-paths-boot, eval=FALSE}
+p_path <- pls_plot(
+  fit_soil,
+  type = "paths",
+  boot = boot_demo
+)
+
+p_path
+```
+
+Each path label can display the point estimate and confidence interval. The figure caption records the interval level, interval method, and `R`.
+
+For a final vector figure:
+
+```{r save-path-pdf, eval=FALSE}
+pls_save_plot(
+  p_path,
+  file = "soil_crop_path_model.pdf",
+  width = 9,
+  height = 7
+)
+```
+
+For a 600-dpi raster copy:
+
+```{r save-path-tiff, eval=FALSE}
+pls_save_plot(
+  p_path,
+  file = "soil_crop_path_model.tiff",
+  width = 9,
+  height = 7,
+  dpi = 600
+)
+```
+
+# 13. Coefficient forest plot with bootstrap intervals
+
+```{r bootstrap-forest, eval=FALSE}
+pls_plot(
+  fit_soil,
+  type = "bootstrap",
+  boot = boot_demo
+)
+```
+
+This plot is often more legible than a dense path diagram when the manuscript needs to emphasize coefficient magnitude and uncertainty.
+
+# Part III. Mediation in an agronomic mechanism
+
+# 14. Nutrient status as part of an indirect pathway
+
+A mediation hypothesis should arise from process knowledge. For example, soil quality may influence crop vigor partly through nutrient status. That ordering should reflect the timing and biology of the study.
+
+Specify the mediation explicitly.
+
+```{r mediation-model}
+m_med <- pls_model(
+  measurement = pls_measurement(
+    pls_reflective("SOIL",  c("soil_om", "soil_cec", "soil_whc")),
+    pls_reflective("NUTR",  c("leaf_n", "leaf_p", "leaf_k")),
+    pls_reflective("VIGOR", c("ndvi", "lai", "chlorophyll"))
+  ),
+  structural = pls_structural(
+    pls_mediation("SOIL", via = "NUTR", to = "VIGOR", direct = TRUE)
+  ),
+  name = "Soil to vigor mediation through nutrition"
+)
+
+fit_med <- pls_fit(m_med, d, engine = "native")
+pls_effects(fit_med)
+```
+
+The indirect effect is the product of component paths. For primary inferential reporting, bootstrap the model and report uncertainty in the relevant coefficients. A future package extension can expose direct bootstrap intervals for compound indirect effects from the stored replication matrix.
+
+Interpretation must distinguish:
+
+- evidence for the `SOIL -> NUTR` path;
+- evidence for the `NUTR -> VIGOR` path;
+- the estimated indirect effect;
+- the remaining direct effect;
+- whether the data design supports temporal or causal language.
+
+# Part IV. Composites and formative measurement
+
+# 15. Bioinput management capacity as a composite
+
+The `bioinput_adoption` dataset illustrates a concept that is more naturally formed by indicators than reflected by interchangeable manifestations.
+
+```{r bioinput-data}
+bio <- pls_data("bioinput_adoption")
+head(bio)
+```
+
+Management capacity is represented by training hours, technical-assistance visits, access to credit, and recordkeeping quality. These variables need not be highly correlated to be scientifically important. Removing one because it has a small outer weight can remove a distinct management resource.
+
+```{r bioinput-model}
+m_bio <- pls_model(
+  measurement = pls_measurement(
+    pls_formative(
+      "CAPACITY",
+      c("training_hours", "technical_assistance_visits", "credit_access", "recordkeeping_score")
+    ),
+    pls_reflective("EFFICACY", c("eff1", "eff2", "eff3")),
+    pls_reflective("ADOPTION", c("adopt1", "adopt2", "adopt3")),
+    pls_reflective("RESPONSE", c("resp1", "resp2", "resp3"))
+  ),
+  structural = pls_structural(
+    pls_path("CAPACITY", "EFFICACY"),
+    pls_path("CAPACITY", "ADOPTION"),
+    pls_path("EFFICACY", "ADOPTION"),
+    pls_path("ADOPTION", "RESPONSE"),
+    pls_path("CAPACITY", "RESPONSE")
+  ),
+  name = "Bioinput capacity-adoption-response model"
+)
+
+fit_bio <- pls_fit(m_bio, bio, engine = "native")
+```
+
+Assess formative VIF and weights.
+
+```{r bio-formative-assessment}
+mb <- pls_measurement_assess(fit_bio)
+mb$formative_vif
+mb$weights
+```
+
+Bootstrap weights directly in a publication table.
+
+```{r bio-weight-table, eval=FALSE}
+pls_table(
+  fit_bio,
+  component = "weights",
+  boot = TRUE,
+  R = 5000,
+  seed = 260819
+)
+```
+
+The inferential importance of an outer weight should be interpreted alongside indicator content, collinearity, absolute contribution, and the conceptual coverage of the composite.
+
+# Part V. Moderation: drought changes the management-response relationship
+
+# 16. Irrigation management under contrasting drought pressure
+
+```{r irrigation-data}
+irr <- pls_data("irrigation_stress")
+head(irr)
+```
+
+A reasonable teaching question is whether the relationship between irrigation-management quality and yield stability changes with drought severity.
+
+First estimate the core latent scores without pretending that a simple score interaction is identical to every latent interaction estimator.
+
+```{r irrigation-core}
+m_irr <- pls_model(
+  measurement = pls_measurement(
+    pls_reflective("MANAGE", c("pressure_uniformity", "scheduling_score", "sensor_use_score")),
+    pls_reflective("EFF", c("water_productivity", "application_efficiency", "deep_percolation_control")),
+    pls_reflective("STRESS", c("canopy_temperature", "leaf_water_potential", "stress_index")),
+    pls_reflective("STABILITY", c("yield_stability", "water_use_stability", "gross_margin_stability"))
+  ),
+  structural = pls_structural(
+    pls_path("MANAGE", "EFF"),
+    pls_path("MANAGE", "STRESS"),
+    pls_path("EFF", "STRESS"),
+    pls_path("MANAGE", "STABILITY"),
+    pls_path("EFF", "STABILITY"),
+    pls_path("STRESS", "STABILITY")
+  )
+)
+
+fit_irr <- pls_fit(m_irr, irr, engine = "native")
+```
+
+A **construct-score** moderation sensitivity analysis can then be used pedagogically:
+
+```{r moderation-score, eval=FALSE}
+pls_moderation_test(
+  fit_irr,
+  predictor = "MANAGE",
+  moderator = "EFF",
+  outcome = "STABILITY",
+  boot = TRUE,
+  R = 5000,
+  seed = 260819
+)
+```
+
+For primary latent-interaction inference, prefer a dedicated backend such as `seminr`, `cSEM`, or `plssem`, depending on the model and indicator type. The score-based helper is labeled a sensitivity analysis precisely to prevent method substitution by naming convenience.
+
+# 17. Dedicated moderation syntax
+
+The semantic specification can retain moderation intent.
+
+```{r moderation-semantic}
+m_mod <- pls_model(
+  measurement = pls_measurement(
+    pls_reflective("MANAGE", c("pressure_uniformity", "scheduling_score", "sensor_use_score")),
+    pls_reflective("EFF", c("water_productivity", "application_efficiency", "deep_percolation_control")),
+    pls_reflective("STABILITY", c("yield_stability", "water_use_stability", "gross_margin_stability"))
+  ),
+  structural = pls_structural(
+    pls_path("MANAGE", "STABILITY"),
+    pls_path("EFF", "STABILITY"),
+    pls_moderation("MANAGE", "EFF", "STABILITY", method = "two_stage")
+  )
+)
+
+cat(pls_syntax(m_mod, dialect = "cSEM"))
+cat(pls_syntax(m_mod, dialect = "plssem"))
+```
+
+The two dialects differ because backends use different interaction notation. The model object preserves the scientific meaning while the adapter handles syntax translation.
+
+# Part VI. Nonlinear structural relations
+
+# 18. Why linearity must be checked rather than assumed
+
+Agronomic response functions are often nonlinear. Water stress, nutrient supply, salinity, temperature, and disease pressure can produce thresholds, plateaus, curvature, or interactions.
+
+`plsSEMflow` offers two conceptually different routes:
+
+1. a score-based polynomial sensitivity analysis for exploration and teaching;
+2. dedicated nonlinear PLS/PLSc backends for primary inference.
+
+A score-based quadratic sensitivity analysis can be requested explicitly.
+
+```{r nonlinear-score, eval=FALSE}
+pls_nonlinear_test(
+  fit_irr,
+  predictor = "EFF",
+  outcome = "STABILITY",
+  degree = 2,
+  boot = TRUE,
+  R = 5000,
+  seed = 260819
+)
+```
+
+The output is deliberately labeled as score-based. It should not be reported as if it were the same estimator as `cSEM::doNonlinearEffectsAnalysis()` or the nonlinear PLSc procedures available through `plssem`.
+
+For a cSEM-backed nonlinear model:
+
+```{r nonlinear-csem, eval=FALSE}
+fit_nl <- pls_fit(
+  m_mod,
+  irr,
+  engine = "cSEM",
+  estimator = "PLSc"
+)
+
+pls_nonlinear_effects(fit_nl)
+```
+
+# Part VII. Prediction and out-of-sample thinking
+
+# 19. Explanation is not prediction
+
+A model can have strong in-sample paths and still predict poorly on new observations. Conversely, a predictive model can be useful even if the scientific objective is not causal explanation.
+
+The native prediction layer uses repeated k-fold cross-validation at the construct-score level and compares PLS-SEM score prediction with a linear benchmark.
+
+```{r prediction, eval=FALSE}
+pred <- pls_predict(
+  fit_soil,
+  folds = 10,
+  repeats = 10,
+  seed = 260819
+)
+
+pred
+```
+
+Plot comparative RMSE.
+
+```{r prediction-plot, eval=FALSE}
+pls_plot(
+  fit_soil,
+  type = "prediction",
+  folds = 10,
+  repeats = 10,
+  seed = 260819
+)
+```
+
+For a cSEM-backed model, `pls_cvpat()` exposes the dedicated cross-validated predictive ability test implemented by cSEM.
+
+```{r cvpat, eval=FALSE}
+fit_csem <- pls_fit(m_soil, d, engine = "cSEM", estimator = "PLSc")
+pls_cvpat(fit_csem)
+```
+
+Do not use legacy in-sample predictive relevance measures as the sole evidence of predictive performance when out-of-sample procedures are available.
+
+# Part VIII. Ordinal agronomic indicators
+
+# 20. Farmer adoption of precision agriculture
+
+Many PLS-SEM studies in agricultural economics, rural extension, technology adoption, and farm management use ordinal Likert indicators.
+
+```{r precision-data}
+pa <- pls_data("precision_adoption")
+head(pa)
+```
+
+The teaching constructs include digital readiness, perceived usefulness, perceived ease, adoption intention, and use intensity. Treating every 1-to-7 variable as fully continuous may be defensible in some contexts and questionable in others. The package therefore provides a backend route for ordinal modeling instead of silently changing the data type.
+
+A raw `plssem` syntax can be used for the specialized ordinal estimator.
+
+```{r ordinal-plssem, eval=FALSE}
+syntax_pa <- '
+  DR =~ dr1 + dr2 + dr3
+  PU =~ pu1 + pu2 + pu3
+  EASE =~ ease1 + ease2 + ease3
+  INTENT =~ intent1 + intent2 + intent3
+  USE =~ use1 + use2 + use3
+
+  PU ~ DR
+  EASE ~ DR
+  INTENT ~ DR + PU + EASE
+  USE ~ INTENT + DR
+'
+
+ord_vars <- c(
+  "dr1","dr2","dr3",
+  "pu1","pu2","pu3",
+  "ease1","ease2","ease3",
+  "intent1","intent2","intent3",
+  "use1","use2","use3"
+)
+
+fit_pa_ord <- pls_ordinal(
+  syntax_pa,
+  pa,
+  ordered = ord_vars,
+  bootstrap = TRUE,
+  R = 5000
+)
+```
+
+The number of bootstrap replications remains visible and user-selected.
+
+# 21. Ordinal soil-health model
+
+```{r ordinal-soil}
+osh <- pls_data("ordinal_soil_health")
+head(osh)
+```
+
+This dataset is useful for teaching ordinal indicators whose content is more agronomic than attitudinal: field ratings of soil structure, infiltration, biological activity, root condition, resilience, and yield stability can naturally be ordinal.
+
+```{r ordinal-soil-syntax, eval=FALSE}
+syntax_osh <- '
+  SOIL =~ soil1 + soil2 + soil3 + soil4
+  ROOT =~ root1 + root2 + root3
+  RESIL =~ resil1 + resil2 + resil3
+  YSTAB =~ ystab1 + ystab2 + ystab3
+
+  ROOT ~ SOIL
+  RESIL ~ SOIL + ROOT
+  YSTAB ~ SOIL + RESIL
+'
+
+ordered_osh <- setdiff(names(osh), c("id", "production_system"))
+fit_osh <- pls_ordinal(syntax_osh, osh, ordered = ordered_osh, bootstrap = TRUE, R = 5000)
+```
+
+# Part IX. Higher-order constructs
+
+# 22. When a broad agronomic construct has dimensions
+
+A farm-management-quality construct may have distinct dimensions such as nutrient management, water management, recordkeeping, and monitoring. A higher-order construct can be scientifically useful when these dimensions are theoretically meaningful and supported by the measurement design.
+
+`pls_higher_order()` stores the declared dimensions and the intended estimation approach.
+
+```{r higher-order-spec, eval=FALSE}
+mm_hoc <- pls_measurement(
+  pls_reflective("NUT_MGT", c("nut1", "nut2", "nut3")),
+  pls_reflective("WAT_MGT", c("wat1", "wat2", "wat3")),
+  pls_reflective("MONITOR", c("mon1", "mon2", "mon3")),
+  pls_higher_order(
+    "MGT_QUALITY",
+    dimensions = c("NUT_MGT", "WAT_MGT", "MONITOR"),
+    type = "composite",
+    approach = "two_stage"
+  )
+)
+```
+
+The native engine intentionally does not estimate higher-order constructs. `engine = "auto"` therefore routes advanced specifications to a compatible optional backend when available. This is an example of a scientific safeguard implemented as software behavior.
+
+# Part X. Multigroup analysis and measurement invariance
+
+# 23. Irrigated versus rainfed systems
+
+The `soil_crop` teaching data contain a `system` indicator that can be used to demonstrate predefined groups.
+
+A quick native comparison can estimate two models and bootstrap the difference in paths.
+
+```{r mga-native, eval=FALSE}
+mga <- pls_mga(
+  m_soil,
+  d,
+  group = "system",
+  R = 5000,
+  seed = 260819
+)
+
+mga$comparison
+```
+
+This is useful for teaching, but **measurement invariance should precede substantive multigroup path interpretation** when the scientific claim requires comparable constructs across groups.
+
+For full MICOM and multigroup-difference workflows, use cSEM.
+
+```{r micom-csem, eval=FALSE}
+fit_group <- pls_fit(
+  m_soil,
+  d,
+  engine = "cSEM",
+  estimator = "PLSc",
+  .id = "system"
+)
+
+pls_micom(fit_group, R = 5000, seed = 260819)
+pls_mgd(fit_group)
+```
+
+A manuscript should not jump directly from separate group-specific path coefficients to a statement that irrigation system changes the mechanism. Establish whether the measurement representation is sufficiently comparable and then test the group difference explicitly.
+
+# Part XI. Multilevel PLS-SEM
+
+# 24. Farms nested within municipalities
+
+```{r multilevel-data}
+ml <- pls_data("multilevel_farms")
+head(ml)
+table(ml$municipality)[1:5]
+```
+
+The unit structure is no longer independent farms drawn from a single flat population. Farms share municipality-level conditions. A multilevel specification can include random intercepts or slopes when the scientific question requires them.
+
+```{r multilevel-model, eval=FALSE}
+syntax_ml <- '
+  SOIL =~ soil_om + aggregate_stability + infiltration
+  MGT =~ management_planning + input_timing + records_quality
+  VIGOR =~ ndvi + lai + spad
+  PROD =~ grain_yield + profitability + yield_stability
+
+  MGT ~ SOIL + (1 | municipality)
+  VIGOR ~ SOIL + MGT + (1 | municipality)
+  PROD ~ SOIL + MGT + VIGOR + (1 | municipality)
+'
+
+fit_ml <- pls_multilevel(
+  syntax_ml,
+  ml,
+  bootstrap = TRUE,
+  R = 2000
+)
+```
+
+The number of clusters, cluster-size distribution, random-effects structure, and resampling unit should be reported. A row-level bootstrap can be inappropriate when the inferential unit is a cluster.
+
+# Part XII. Endogeneity and structural sensitivity
+
+# 25. Why endogeneity is not a checkbox
+
+In farm-management studies, perceived technology usefulness, investment, and adoption can be jointly determined. In crop-management studies, treatment choice can be endogenous in observational datasets because producers select practices based on expected performance, resource availability, or prior field condition.
+
+`cSEM` exposes a Hausman-style endogeneity test and two-stage structural estimation facilities. `plsSEMflow` provides an adapter rather than reimplementing the method incompletely.
+
+```{r endogeneity, eval=FALSE}
+fit_endog <- pls_fit(m_soil, d, engine = "cSEM", estimator = "PLSc")
+pls_endogeneity(fit_endog)
+```
+
+A statistical endogeneity test does not create a valid instrument. Instrument relevance and exclusion restrictions are scientific assumptions that must be justified externally.
+
+# Part XIII. Bayesian companion analysis
+
+# 26. Why the package avoids the label “Bayesian PLS-SEM” by default
+
+A Bayesian covariance-based SEM fitted with `blavaan` and a PLS-SEM are different estimators built around different model concepts. Calling any Bayesian SEM fit “Bayesian PLS-SEM” would obscure that distinction.
+
+For compatible reflective models, `pls_bayes_compare()` translates the model to a Bayesian CB-SEM companion analysis.
+
+```{r bayes-companion, eval=FALSE}
+bayes_soil <- pls_bayes_compare(
+  m_soil,
+  d,
+  burnin = 1000,
+  sample = 5000
+)
+```
+
+Use the companion analysis to ask whether the main scientific conclusion is sensitive to estimator philosophy and prior assumptions, not to claim that the same estimator was fitted twice.
+
+# Part XIV. Cross-engine comparison
+
+# 27. Numerical concordance is meaningful only under comparable parameterization
+
+```{r engine-comparison, eval=FALSE}
+cmp <- pls_compare_engines(
+  m_soil,
+  d,
+  engines = c("native", "cSEM"),
+  estimator = "PLS"
+)
+
+cmp$status
+```
+
+Differences may arise from:
+
+- PLS versus PLSc disattenuation;
+- sign orientation;
+- inner weighting scheme;
+- handling of factor versus composite constructs;
+- standardization;
+- missing-data treatment;
+- nonlinear-term construction;
+- higher-order strategy;
+- backend-specific defaults.
+
+Golden tests should compare quantities only when the estimand and parameterization are aligned.
+
+# Part XV. Publication-ready figures and tables
+
+# 28. Figure principles
+
+A scientific figure should help the reader understand the model and uncertainty, not merely reproduce a software screenshot.
+
+For PLS-SEM output, prefer:
+
+1. observed-data plots when useful for understanding indicator distributions or nonlinear patterns;
+2. path diagrams with coefficients and bootstrap CIs;
+3. coefficient forest plots when many paths are present;
+4. loading/weight plots with uncertainty;
+5. HTMT heat maps for discriminant-validity communication;
+6. prediction-error comparisons for out-of-sample assessment;
+7. explicit captions stating the interval type, confidence level, and bootstrap replication count.
+
+Example loading plot with bootstrap intervals:
+
+```{r loading-plot, eval=FALSE}
+pls_plot(
+  fit_soil,
+  type = "loadings",
+  boot = TRUE,
+  R = 5000,
+  seed = 260819
+)
+```
+
+Example R-squared plot:
+
+```{r r2-plot, eval=FALSE}
+pls_plot(fit_soil, type = "r2")
+```
+
+# 29. Table principles
+
+A publication table should separate authoritative numeric values from display rounding.
+
+```{r table-r2}
+pls_table(fit_soil, component = "r2")
+```
+
+Formatted Word-oriented output can use `flextable` when installed.
+
+```{r table-flextable, eval=FALSE}
+pls_table(
+  fit_soil,
+  component = "paths",
+  boot = boot_demo,
+  format = "flextable",
+  digits = 3
+)
+```
+
+Spreadsheet export retains numeric cells.
+
+```{r table-xlsx, eval=FALSE}
+path_table <- pls_table(fit_soil, component = "paths", boot = boot_demo)
+pls_export_xlsx(path_table, "soil_crop_paths.xlsx")
+```
+
+# Part XVI. Reviewer mode
+
+# 30. Audit an analysis before it becomes a manuscript conclusion
+
+```{r postfit-audit}
+pls_audit(fit_soil)
+```
+
+The audit does not replace expert review. It prompts the analyst to investigate recurring problems such as:
+
+- reflective constructs with too few indicators;
+- low loadings treated as automatic deletion commands;
+- AVE or HTMT problems;
+- structural collinearity;
+- missing bootstrap inference;
+- small samples interpreted through universal rules;
+- unsupported causal language;
+- multigroup analysis without invariance testing;
+- nonlinear interpretation without a nonlinear estimator;
+- prediction claims based only on in-sample metrics.
+
+Use the reviewer teaching tour:
+
+```{r reviewer-tour}
+pls_tour("reviewer")
+```
+
+# Part XVII. Complete basic workflow
+
+# 31. A compact agronomic analysis from start to report
+
+```{r full-basic, eval=FALSE}
+library(plsSEMflow)
+
+d <- pls_data("soil_crop")
+
+model <- pls_model(
+  measurement = pls_measurement(
+    pls_reflective("SOIL",  c("soil_om", "soil_cec", "soil_whc")),
+    pls_reflective("NUTR",  c("leaf_n", "leaf_p", "leaf_k")),
+    pls_reflective("VIGOR", c("ndvi", "lai", "chlorophyll")),
+    pls_reflective("YIELD", c("grain_yield", "biomass", "harvest_index"))
+  ),
+  structural = pls_structural(
+    pls_path("SOIL", "NUTR"),
+    pls_path("SOIL", "VIGOR"),
+    pls_path("NUTR", "VIGOR"),
+    pls_path("NUTR", "YIELD"),
+    pls_path("VIGOR", "YIELD")
+  )
+)
+
+# 1. Audit
+pls_audit(model, d)
+
+# 2. Fit
+fit <- pls_fit(model, d, engine = "native")
+
+# 3. Measurement assessment
+measurement <- pls_measurement_assess(fit)
+
+# 4. Structural assessment
+structural <- pls_structural_assess(fit)
+
+# 5. Bootstrap chosen by the analyst
+boot <- pls_bootstrap(
+  fit,
+  R = 10000,
+  seed = 260819,
+  level = 0.95,
+  interval = "percentile"
+)
+
+# 6. Tables
+path_table <- pls_table(fit, "paths", boot = boot)
+loading_table <- pls_table(fit, "loadings", boot = boot)
+reliability_table <- pls_table(fit, "reliability")
+
+# 7. Figures
+path_figure <- pls_plot(fit, "paths", boot = boot)
+coef_figure <- pls_plot(fit, "bootstrap", boot = boot)
+loading_figure <- pls_plot(fit, "loadings", boot = boot)
+
+# 8. Prediction
+pred <- pls_predict(fit, folds = 10, repeats = 10, seed = 260819)
+
+# 9. Audit after estimation
+pls_audit(fit)
+
+# 10. Reproducible report skeleton
+pls_report(
+  fit,
+  file = "soil_crop_plssem_analysis.md",
+  title = "Soil quality, crop nutrition, vigor and yield PLS-SEM analysis",
+  boot = boot
+)
+```
+
+The workflow is intentionally linear. It prevents the common habit of interpreting path p-values before asking whether the constructs are measured coherently or whether the model predicts anything outside the estimation sample.
+
+# Part XVIII. Complete advanced workflow
+
+# 32. Precision-agriculture adoption with ordinal indicators and groups
+
+A more advanced workflow might proceed as follows:
+
+1. define farmer- or farm-level observational units;
+2. classify the Likert indicators as ordinal;
+3. fit the ordinal PLS/PLSc model through `plssem`;
+4. use a user-selected bootstrap size;
+5. inspect measurement properties;
+6. compare regions only after an invariance procedure that supports the comparison;
+7. assess prediction if adoption forecasting is a research goal;
+8. report the difference between statistical association and causal adoption mechanisms.
+
+Illustrative code:
+
+```{r advanced-pa, eval=FALSE}
+pa <- pls_data("precision_adoption")
+
+syntax <- '
+  DR =~ dr1 + dr2 + dr3
+  PU =~ pu1 + pu2 + pu3
+  EASE =~ ease1 + ease2 + ease3
+  INTENT =~ intent1 + intent2 + intent3
+  USE =~ use1 + use2 + use3
+
+  PU ~ DR
+  EASE ~ DR
+  INTENT ~ DR + PU + EASE
+  USE ~ INTENT + DR
+'
+
+ord <- grep("^(dr|pu|ease|intent|use)", names(pa), value = TRUE)
+
+fit_ord <- pls_ordinal(
+  syntax,
+  pa,
+  ordered = ord,
+  bootstrap = TRUE,
+  R = 5000
+)
+```
+
+For group comparisons, build the same scientific model with the cSEM adapter when the desired MICOM/MGD procedure is available and parameterization is compatible.
+
+# 33. Complete multilevel workflow
+
+For farms within municipalities:
+
+1. inspect the cluster-size distribution;
+2. decide whether the scientific process requires random intercepts, random slopes, or both;
+3. specify the multilevel model in `plssem` syntax;
+4. use cluster-aware uncertainty when the inferential target requires it;
+5. report the number of clusters and within-cluster sample sizes;
+6. distinguish within- and between-cluster interpretation.
+
+```{r full-multilevel, eval=FALSE}
+ml <- pls_data("multilevel_farms")
+
+syntax_ml <- '
+  SOIL =~ soil_om + aggregate_stability + infiltration
+  MGT =~ management_planning + input_timing + records_quality
+  VIGOR =~ ndvi + lai + spad
+  PROD =~ grain_yield + profitability + yield_stability
+
+  MGT ~ SOIL + (1 | municipality)
+  VIGOR ~ SOIL + MGT + (1 | municipality)
+  PROD ~ SOIL + MGT + VIGOR + (1 | municipality)
+'
+
+fit_ml <- pls_multilevel(
+  syntax_ml,
+  ml,
+  bootstrap = TRUE,
+  R = 5000
+)
+```
+
+# Part XIX. Unobserved heterogeneity and validation studies
+
+## 34. REBUS-PLS as a sensitivity workflow
+
+Observed agronomic groups should be examined first whenever they have a defensible scientific meaning. For example, irrigation system, rainfall zone, soil class, production system, or region may define groups that are directly interpretable. Unobserved segmentation becomes relevant only when there is a substantive reason to suspect that these observed descriptors do not capture important heterogeneity.
+
+The classical REBUS workflow is exposed through the optional `plspm` backend:
+
+```{r rebus, eval=FALSE}
+fit_plspm <- pls_fit(
+  m,
+  d,
+  engine = "plspm"
+)
+
+rebus <- pls_rebus(
+  fit_plspm,
+  stop_crit = 0.005,
+  iter_max = 100
+)
+
+rebus
+```
+
+`FIMIX-PLS` and `PLS-POS` are registered by `pls_heterogeneity()` as specialist external workflows rather than emulated using a different estimator:
+
+```{r heterogeneity-external, eval=FALSE}
+pls_heterogeneity(fit, method = "FIMIX")
+pls_heterogeneity(fit, method = "PLS-POS")
+```
+
+This distinction is deliberate. A package integrator should make methodological gaps visible rather than silently substituting a convenient algorithm.
+
+## 35. Simulate an agronomic validation scenario
+
+Method development and teaching benefit from cases where the data-generating parameters are known. `pls_simulate()` generates continuous manifest data from a recursive PLS-SEM specification. These simulated data are for validation and teaching only.
+
+```{r simulate-validation, eval=FALSE}
+truth <- c(
+  "SOIL -> NUTR"  = 0.50,
+  "SOIL -> VIGOR" = 0.30,
+  "NUTR -> VIGOR" = 0.40,
+  "NUTR -> YIELD" = 0.25,
+  "VIGOR -> YIELD" = 0.45
+)
+
+sim <- pls_simulate(
+  m,
+  n = 600,
+  path_values = truth,
+  seed = 260819
+)
+
+sim_fit <- pls_fit(m, sim, engine = "native")
+```
+
+A frozen validation case can combine parameter recovery and bootstrap coverage:
+
+```{r validation-case, eval=FALSE}
+val <- pls_validation_case(
+  m,
+  n = 600,
+  path_values = truth,
+  R = 1999,
+  seed = 260819
+)
+
+val$table
+```
+
+The primary quantities are bias and coverage, not whether an individual simulated sample produces a small p-value. For package validation, scenarios should be repeated across sample sizes, path strengths, loading patterns, collinearity, missingness, ordinal indicators, nonlinearity, heterogeneity, and model misspecification.
+
+When compatible optional engines are installed, use the cross-engine scaffold:
+
+```{r cross-engine-validation, eval=FALSE}
+pls_validate_cross_engine(
+  m,
+  d,
+  engines = c("native", "cSEM"),
+  tolerance = 0.05
+)
+```
+
+Numerical tolerance must be defined with reference to whether two engines are fitting the same estimand and parameterization. A difference is not evidence of a software error when estimators, scaling conventions, or construct definitions differ.
+
+# Part XX. Common mistakes and corresponding safeguards
+
+# 34. Calling every block “reflective”
+
+Use `pls_reflective()` only when the indicators are defensibly viewed as manifestations of a common construct. Use `pls_composite()` or `pls_formative()` when the indicators jointly define the concept.
+
+# 35. Deleting indicators because a loading is below a single cutoff
+
+Use `pls_measurement_assess()` and `pls_audit()` to identify the issue, then review content validity, reliability, AVE, indicator reliability, and the scientific meaning of the construct.
+
+# 36. Reporting path coefficients without uncertainty
+
+Use `pls_bootstrap()` and include the resulting intervals in `pls_table()` and `pls_plot()`.
+
+# 37. Hiding the bootstrap size
+
+The package stores and displays `R`. The manuscript should report it together with the seed policy, confidence level, and interval method.
+
+# 38. Using 100 bootstrap replications for a final manuscript because the code example did
+
+Small `R` values in evaluated vignettes are computational demonstrations. Final values should be selected for inferential stability and the scientific reporting context.
+
+# 39. Treating a confidence interval as a biological relevance threshold
+
+An interval excluding zero addresses statistical compatibility with zero under the resampling procedure. It does not establish agronomic importance. Interpret the coefficient scale and practical effect.
+
+# 40. Performing MGA without invariance assessment
+
+Use MICOM or another appropriate invariance framework before substantive group comparisons when comparable measurement is required.
+
+# 41. Treating score-based polynomial regression as nonlinear PLS-SEM
+
+`pls_nonlinear_test()` is explicitly a sensitivity tool. Use `cSEM` or `plssem` for dedicated nonlinear PLS/PLSc estimation.
+
+# 42. Calling a Bayesian CB-SEM fit “Bayesian PLS-SEM”
+
+`pls_bayes_compare()` is intentionally labeled a companion analysis.
+
+# 43. Claiming causality from a cross-sectional farm survey
+
+PLS-SEM estimates structural associations under the specified model. Causal interpretation requires design and identification assumptions that no PLS algorithm can supply automatically.
+
+# 44. Choosing an engine because it gives the preferred p-value
+
+Use `pls_capabilities()` and the model requirements. Engine selection should follow estimator capability and scientific design, not desired significance.
+
+# 45. Installing Python or Julia as a prerequisite for the basic package
+
+Do not. The native core is R-only. Python and Julia are optional interoperability targets.
+
+# Part XXI. Reporting checklist
+
+Before a PLS-SEM result leaves the analysis notebook, thesis, report, or manuscript, document:
+
+- [ ] scientific question and directional rationale;
+- [ ] observational or experimental unit;
+- [ ] sampling, randomization, grouping, and repeated-measure structure;
+- [ ] construct definitions;
+- [ ] rationale for factor versus composite/formative conceptualization;
+- [ ] indicator scales and coding direction;
+- [ ] missing-data strategy;
+- [ ] selected engine and estimator;
+- [ ] software/package versions;
+- [ ] PLS weighting settings if changed from defaults;
+- [ ] convergence information;
+- [ ] outer loadings and/or weights;
+- [ ] reliability and AVE for reflective constructs where relevant;
+- [ ] formative collinearity diagnostics;
+- [ ] discriminant-validity assessment;
+- [ ] structural VIF;
+- [ ] path coefficients;
+- [ ] R-squared and f-squared where scientifically useful;
+- [ ] bootstrap replication count chosen by the analyst;
+- [ ] bootstrap seed policy;
+- [ ] confidence level;
+- [ ] bootstrap interval method;
+- [ ] bootstrap CIs in coefficient tables;
+- [ ] bootstrap CIs in figures when coefficients are displayed;
+- [ ] direct, indirect, and total effects for mediation models;
+- [ ] interaction method for moderation;
+- [ ] measurement invariance before substantive group comparisons;
+- [ ] multilevel cluster counts and random structure when relevant;
+- [ ] nonlinear functional rationale when relevant;
+- [ ] endogeneity rationale and instrument assumptions when relevant;
+- [ ] out-of-sample prediction assessment when prediction is claimed;
+- [ ] sensitivity to defensible alternative engines or estimators when relevant;
+- [ ] clear separation of simulated teaching results from empirical field evidence;
+- [ ] reproducibility information and session details.
+
+# Part XXII. Guided learning sequence
+
+Use the teaching tours in approximately this order:
+
+```{r tours}
+pls_tour("foundations")
+pls_tour("measurement")
+pls_tour("structural")
+pls_tour("bootstrap")
+pls_tour("mediation")
+pls_tour("moderation")
+pls_tour("prediction")
+pls_tour("multigroup")
+pls_tour("nonlinear")
+pls_tour("multilevel")
+pls_tour("bayesian")
+pls_tour("reviewer")
+```
+
+# Part XXIII. State of the software ecosystem used by the integrator
+
+The package architecture was designed against the software ecosystem available in August 2026.
+
+## R
+
+- `seminr` 2.4.2 is available on CRAN and provides an integrated SEM syntax with PLS-SEM/PLSc, interactions, bootstrap, prediction, and MGA functionality.
+- `cSEM` 0.6.1 provides composite-based SEM, PLS-PM, PLSc, ordinal and robust variants, assessment, inference, prediction, CVPAT, MICOM, multigroup-difference tests, endogeneity testing, IPMA, and nonlinear-effects analysis.
+- `plssem` 0.1.3 is the current CRAN release checked during package design; its development documentation shows 0.1.4 and includes ordinal, nonlinear, higher-order, bootstrap, and multilevel examples.
+- `plspm` 0.6.0 remains useful for classical PLS-PM, nonmetric data, and REBUS workflows.
+
+## Python
+
+- `seminr-py` provides a Python port whose stated goal is numerical parity with the R package for supported PLS quantities.
+- `GoogleCloudPlatform/plspm-python` implements PLS-PM with Mode A/Mode B, nonmetric data, higher-order constructs, missing-data handling, and multicore bootstrap.
+
+Python remains optional in `plsSEMflow`.
+
+## Julia
+
+`StructuralEquationModels.jl` is an active, extensible SEM framework supporting linear SEM, ML, GLS, FIML, regularization, multigroup analysis, and custom loss functions. It is not treated by `plsSEMflow` as a native PLS-SEM backend. Julia therefore remains an optional research and benchmarking bridge rather than a required dependency.
+
+## Commercial/specialized software
+
+SmartPLS 4 remains a principal external reference for PLS-SEM workflows, including bootstrapping, PLSc, PLSpredict, CVPAT, mediation, moderation, higher-order models, MICOM, MGA, FIMIX-PLS, PLS-POS, IPMA, NCA, and endogeneity procedures. WarpPLS 8.0 remains a specialized reference for nonlinear PLS-based SEM. XLSTAT continues to provide PLS Path Modelling within Excel. External programs are validation/interoperability targets, not runtime dependencies.
+
+# Appendix A. Recommended focused vignettes
+
+After this integrated tutorial, use the focused vignettes in approximately this order:
+
+1. `01-quick-start.Rmd`
+2. `02-construct-conceptualization.Rmd`
+3. `03-measurement-models.Rmd`
+4. `04-structural-models.Rmd`
+5. `05-bootstrap-inference.Rmd`
+6. `06-mediation.Rmd`
+7. `07-moderation-nonlinear.Rmd`
+8. `08-prediction.Rmd`
+9. `09-higher-order.Rmd`
+10. `10-ordinal-categorical.Rmd`
+11. `11-multigroup-micom.Rmd`
+12. `12-multilevel.Rmd`
+13. `13-endogeneity-sensitivity.Rmd`
+14. `14-bayesian-companion.Rmd`
+15. `15-engine-integration.Rmd`
+16. `16-publication-output.Rmd`
+17. `17-agronomic-case-studies.Rmd`
+18. `18-validation-reproducibility.Rmd`
+19. `19-reviewer-audit.Rmd`
+20. `20-api-example-catalog.Rmd`
+
+# Appendix B. A single starter script
+
+```{r starter, eval=FALSE}
+library(plsSEMflow)
+
+d <- pls_data("soil_crop")
+
+m <- pls_model(
+  measurement = pls_measurement(
+    pls_reflective("SOIL",  c("soil_om", "soil_cec", "soil_whc")),
+    pls_reflective("NUTR",  c("leaf_n", "leaf_p", "leaf_k")),
+    pls_reflective("VIGOR", c("ndvi", "lai", "chlorophyll")),
+    pls_reflective("YIELD", c("grain_yield", "biomass", "harvest_index"))
+  ),
+  structural = pls_structural(
+    pls_path("SOIL", "NUTR"),
+    pls_path("SOIL", "VIGOR"),
+    pls_path("NUTR", "VIGOR"),
+    pls_path("NUTR", "YIELD"),
+    pls_path("VIGOR", "YIELD")
+  )
+)
+
+pls_audit(m, d)
+fit <- pls_fit(m, d, engine = "native")
+
+boot <- pls_bootstrap(
+  fit,
+  R = 5000,
+  seed = 260819,
+  level = 0.95,
+  interval = "percentile"
+)
+
+pls_table(fit, "paths", boot = boot)
+pls_table(fit, "loadings", boot = boot)
+pls_table(fit, "reliability")
+
+pls_plot(fit, "paths", boot = boot)
+pls_plot(fit, "bootstrap", boot = boot)
+
+pls_predict(fit, folds = 10, repeats = 10, seed = 260819)
+pls_audit(fit)
+```
+
+# Final perspective
+
+The package should make advanced PLS-SEM easier to use without making the scientific decisions invisible. For agronomic applications, the recommended progression is:
+
+**agronomic mechanism -> construct definition -> measurement specification -> structural specification -> estimation -> measurement assessment -> bootstrap uncertainty -> structural assessment -> prediction -> justified advanced extension -> publication output -> reproducibility audit.**
+
+The central contribution of `plsSEMflow` is not a new label for existing software. It is a common, auditable analysis grammar that allows researchers to move from a transparent R-only PLS-PM core to specialized PLSc, ordinal, nonlinear, multigroup, multilevel, and Bayesian companion workflows while preserving what the model means scientifically.

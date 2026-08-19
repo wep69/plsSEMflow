@@ -1,0 +1,192 @@
+---
+title: "Structural Models and Agronomic Mechanisms"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Structural Models and Agronomic Mechanisms}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+library(plsSEMflow)
+```
+
+# Purpose
+
+This vignette covers directional paths, structural collinearity, R-squared, f-squared, biological relevance, and the limits of causal language.
+
+# Learning sequence
+
+1. State the agronomic question.
+2. Identify the unit of observation and any grouping.
+3. Define constructs before fitting.
+4. Fit only an estimator that supports the requested model.
+5. Diagnose measurement before structural interpretation.
+6. Use user-controlled bootstrap uncertainty for inferential coefficients.
+7. Assess prediction when prediction is claimed.
+8. Export publication output without hiding the CI method or replication count.
+
+# Agronomic example
+
+```{r, eval=FALSE}
+d <- pls_data("soil_crop")
+
+m <- pls_model(
+  pls_measurement(
+    pls_reflective("SOIL", c("soil_om", "soil_cec", "soil_whc")),
+    pls_reflective("NUTR", c("leaf_n", "leaf_p", "leaf_k")),
+    pls_reflective("VIGOR", c("ndvi", "lai", "chlorophyll")),
+    pls_reflective("YIELD", c("grain_yield", "biomass", "harvest_index"))
+  ),
+  pls_structural(
+    pls_path("SOIL", "NUTR"),
+    pls_path("NUTR", "VIGOR"),
+    pls_path("VIGOR", "YIELD")
+  )
+)
+
+fit <- pls_fit(m, d, engine = "native")
+boot <- pls_bootstrap(fit, R = 5000, seed = 260819)
+pls_table(fit, "paths", boot = boot)
+pls_plot(fit, "paths", boot = boot)
+```
+
+# Interpretation discipline
+
+Do not reduce the analysis to significance labels. Report the parameter estimate, uncertainty, construct meaning, unit and design context, and practical agronomic interpretation. When the analysis uses simulated teaching data, state that fact explicitly.
+
+# What to verify before publication
+
+- construct conceptualization;
+- measurement quality;
+- structural collinearity;
+- bootstrap `R`, seed policy, CI method, and level;
+- predictive assessment when relevant;
+- invariance before group comparison;
+- distinction between score-based sensitivity and dedicated latent estimators;
+- reproducibility and package versions.
+
+# Three additional examples
+
+```{r, eval=FALSE}
+# Example 1: bioinput composite
+bio <- pls_data("bioinput_adoption")
+
+# Example 2: ordinal farmer-adoption indicators
+pa <- pls_data("precision_adoption")
+
+# Example 3: clustered farms
+ml <- pls_data("multilevel_farms")
+```
+
+# Connection to the integrated tutorial
+
+See `21-foundations-to-advanced-tutorial.Rmd` for the full progression, publication examples, advanced backends, and reporting checklist.
+
+# Module-specific scientific focus
+
+**Teaching dataset:** `soil_crop`  
+**Primary focus:** path coefficients, structural VIF, R2 and f2.
+
+Structural coefficients are interpreted after measurement adequacy and with bootstrap uncertainty.
+
+The bundled dataset is frozen simulated teaching material. The workflow is realistic, but the resulting numerical values are not empirical evidence. In a real study, replace the teaching data while preserving the sequence of conceptualization, audit, estimation, uncertainty, diagnosis, interpretation, and reporting.
+
+
+# Conceptual questions before running code
+
+Before fitting any model in this module, answer the following questions in writing:
+
+1. **What is the observational unit?** A plant, plot, farm, field, municipality, season, farmer, or repeated visit cannot be exchanged without changing the statistical interpretation.
+2. **What exactly does each construct mean?** Give a scientific definition before looking at loadings or path coefficients.
+3. **Why are the indicators attached to that construct?** State whether they are expected manifestations of a common factor or ingredients that jointly form a composite.
+4. **Why is each arrow directional?** Use physiology, soil science, crop management, technology-adoption theory, chronology, or the experimental design. A directional arrow is not justified merely because a regression can be computed.
+5. **Which claims are explanatory, predictive, or causal?** Keep these goals separate in the manuscript.
+6. **Which uncertainty procedure will be reported?** For PLS-SEM coefficients, define bootstrap `R`, seed policy, confidence level, interval type, and resampling unit before producing the final table.
+
+# Bootstrap layer
+
+The examples in package help and evaluated vignettes can use a small replication count to keep checks fast. That value must not be copied mechanically into a final manuscript.
+
+```{r, eval=FALSE}
+# Fast code check only
+boot_check <- pls_bootstrap(fit, R = 99, seed = 260819)
+
+# Example of an analysis-scale setting selected by the analyst
+boot_final <- pls_bootstrap(
+  fit,
+  R = 5000,
+  seed = 260819,
+  level = 0.95,
+  interval = "percentile"
+)
+```
+
+If greater Monte Carlo stability is required, increase `R`. The package does not hide the value or overwrite it with a fixed universal recommendation.
+
+# Publication output
+
+The same bootstrap object should be reused across tables and figures so that the reported uncertainty is internally consistent.
+
+```{r, eval=FALSE}
+path_tab <- pls_table(fit, "paths", boot = boot_final)
+loading_tab <- pls_table(fit, "loadings", boot = boot_final)
+
+p_path <- pls_plot(fit, "paths", boot = boot_final)
+p_coef <- pls_plot(fit, "bootstrap", boot = boot_final)
+```
+
+A figure caption should identify the confidence level, bootstrap interval type, and number of resamples. A table footnote should provide the same information. Do not show confidence bars without stating how they were calculated.
+
+# Interpretation template
+
+A defensible paragraph normally contains four elements:
+
+1. the direction and magnitude of the estimated relation;
+2. the bootstrap confidence interval and its substantive width;
+3. the amount of explained or predictive variation when relevant;
+4. an agronomic interpretation constrained by the design.
+
+Avoid converting every coefficient into a binary “significant/non-significant” conclusion. A narrow interval around a small effect and a wide interval around a large point estimate tell very different scientific stories.
+
+# Sensitivity and escalation
+
+Escalate the model only when a simpler representation leaves a specific problem unresolved. Examples include ordinal indicators, heterogeneous groups, nonlinear response, multilevel sampling, endogeneity, or prediction failure. Record the reason for escalation in the audit trail.
+
+```{r, eval=FALSE}
+pls_capabilities()
+pls_external_capabilities()
+```
+
+An unavailable optional backend should produce an informative error. The core R workflow remains usable without Python, Julia, or commercial software.
+
+# Common errors to avoid
+
+- choosing a construct type from the observed correlation matrix alone;
+- deleting an indicator automatically because a heuristic threshold is missed;
+- using a universal sample-size rule without power or sensitivity reasoning;
+- reporting paths without bootstrap uncertainty;
+- interpreting R-squared as causal evidence;
+- claiming prediction without held-out assessment;
+- comparing groups without checking measurement comparability;
+- using row-level resampling for a clustered inferential problem without justification;
+- treating an exploratory score regression as the primary latent-variable estimator;
+- changing engines until the preferred p-value appears;
+- omitting software versions, seeds, bootstrap settings, and data-processing decisions.
+
+# Minimum reporting block
+
+For this module, report at least:
+
+- dataset and unit of observation;
+- construct definitions and measurement type;
+- structural hypotheses;
+- engine and estimator;
+- missing-data handling;
+- measurement diagnostics relevant to the construct type;
+- structural estimates;
+- bootstrap `R`, seed, CI level, and method;
+- prediction or sensitivity diagnostics when relevant;
+- limitations on causal or out-of-sample interpretation;
+- package and R versions.

@@ -1,0 +1,65 @@
+url: https://github.com/walter-esfrain/plsSEMflow
+template:
+  bootstrap: 5
+reference:
+- title: Model specification
+  contents:
+  - starts_with("pls_model")
+  - starts_with("pls_measurement")
+  - starts_with("pls_reflective")
+  - starts_with("pls_composite")
+  - starts_with("pls_formative")
+  - starts_with("pls_higher_order")
+  - starts_with("pls_structural")
+  - starts_with("pls_path")
+  - starts_with("pls_mediation")
+  - starts_with("pls_moderation")
+  - starts_with("pls_nonlinear")
+  - starts_with("pls_quadratic")
+- title: Estimation, assessment, and bootstrap
+  contents:
+  - pls_fit
+  - pls_bootstrap
+  - pls_boot_ci
+  - pls_assess
+  - pls_measurement_assess
+  - pls_structural_assess
+  - pls_effects
+- title: Prediction, groups, and heterogeneity
+  contents:
+  - starts_with("pls_predict")
+  - starts_with("pls_cvpat")
+  - starts_with("pls_mga")
+  - starts_with("pls_micom")
+  - starts_with("pls_mgd")
+  - starts_with("pls_rebus")
+  - starts_with("pls_heterogeneity")
+- title: Advanced estimation and specialist backends
+  contents:
+  - starts_with("pls_multilevel")
+  - starts_with("pls_ordinal")
+  - starts_with("pls_nonlinear_effects")
+  - starts_with("pls_endogeneity")
+  - starts_with("pls_ipma")
+  - starts_with("pls_bayes")
+  - starts_with("pls_compare_engines")
+- title: Simulation and validation
+  contents:
+  - starts_with("pls_simulate")
+  - starts_with("pls_validation_case")
+  - starts_with("pls_validate_cross_engine")
+  - starts_with("pls_compare_external")
+  - starts_with("pls_export_external")
+  - starts_with("pls_import_external")
+- title: Communication and teaching
+  contents:
+  - pls_plot
+  - pls_plot_coefficients
+  - pls_plot_mga
+  - pls_table
+  - pls_table_advanced
+  - pls_report
+  - pls_tour
+  - pls_data
+  - pls_datasets
+  - pls_audit

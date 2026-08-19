@@ -1,0 +1,10 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^README\.Rmd$
+^development-notes\.md$
+^validation-local\.md$
+^\.github$
+^_pkgdown\.yml$
+^data-raw$
+^tools$
+^cheatsheet$
