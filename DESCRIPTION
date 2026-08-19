@@ -53,6 +53,6 @@ Suggests:
 Config/testthat/edition: 3
 Roxygen: list(markdown = TRUE)
 VignetteBuilder: knitr
-URL: https://github.com/walter-esfrain/plsSEMflow
-BugReports: https://github.com/walter-esfrain/plsSEMflow/issues
+URL: https://github.com/wep69/plsSEMflow
+BugReports: https://github.com/wep69/plsSEMflow/issues
 Config/roxygen2/version: 8.1.0

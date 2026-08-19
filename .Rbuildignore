@@ -8,3 +8,8 @@
 ^data-raw$
 ^tools$
 ^cheatsheet$
+^CHECKLIST_FINAL\.md$
+^COMMIT_MESSAGE\.md$
+^FASES_VALIDACAO\.md$
+^env\.ps1$
+^check_env\.R$

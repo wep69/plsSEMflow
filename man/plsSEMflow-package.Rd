@@ -13,8 +13,8 @@ agronomic teaching workflows.
 \seealso{
 Useful links:
 \itemize{
-  \item \url{https://github.com/walter-esfrain/plsSEMflow}
-  \item Report bugs at \url{https://github.com/walter-esfrain/plsSEMflow/issues}
+  \item \url{https://github.com/wep69/plsSEMflow}
+  \item Report bugs at \url{https://github.com/wep69/plsSEMflow/issues}
 }
 
 }
