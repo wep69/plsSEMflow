@@ -15,6 +15,20 @@ The package is intentionally **R-first**. Python, Julia, SmartPLS, WarpPLS, ADAN
 7. Keep a complete audit trail of engine selection and analytical decisions.
 8. Prefer agronomic teaching examples, with frozen simulated datasets clearly labeled as teaching data.
 
+## Installation
+
+### Quick install (without vignettes)
+
+```r
+pak::pak("wep69/plsSEMflow")
+```
+
+### Full install (with vignettes)
+
+```r
+remotes::install_github("wep69/plsSEMflow", build_vignettes = TRUE)
+```
+
 ## Minimal example
 
 ```r
