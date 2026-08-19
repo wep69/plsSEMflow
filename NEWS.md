@@ -1,5 +1,16 @@
 # plsSEMflow 0.1.0.9000
 
+## Validação Local Completa (19/08/2026)
+
+* R CMD check --as-cran: 0 ERRORs, 0 WARNINGs, 0 NOTEs.
+* testthat: 25 testes, 0 falhas, 0 erros, 0 pulos.
+* 21 vinhetas reconstruídas com sucesso.
+* win-builder R-devel submetido.
+* CI GitHub Actions configurado com matriz (Windows, macOS, Ubuntu devel/release).
+* Repositório GitHub criado: https://github.com/wep69/plsSEMflow.
+
+## Funcionalidades
+
 * Initial development version.
 * Native continuous linear PLS-PM engine.
 * Semantic model specification for reflective, composite, formative, mediation, moderation, nonlinear and higher-order relations.
