@@ -21,7 +21,18 @@ pls_simulate(
 \item{n}{Number of observations.}
 
 \item{path_values}{Optional named numeric vector using labels such as
-\code{"SOIL -> NUTR"}. Unspecified paths default to \code{0.35}.}
+\code{"SOIL -> NUTR"}. Unspecified paths default to \code{0.35}.
+
+\strong{These are structural coefficients, not the correlations the engine
+recovers.} The latent score of each endogenous construct is standardized
+after its structural equation, so the implied correlation with a single
+parent is \code{beta / sqrt(beta^2 + structural_noise^2)}. With the defaults a
+planted \code{0.60} is recovered near \code{0.45}, and the gap does not shrink with
+\code{n}, because it is bias by construction and not sampling noise. Use
+\code{structural_noise} and \code{indicator_noise} close to zero when the goal is to
+recover a known truth. The implied correlation matrix is returned in the
+\code{"implied_cor"} attribute of the result, next to the requested values in
+\code{"path_values"}, so both are auditable.}
 
 \item{loading}{Loading magnitude for reflective indicators.}
 

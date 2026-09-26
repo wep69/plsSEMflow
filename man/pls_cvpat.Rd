@@ -4,10 +4,12 @@
 \alias{pls_cvpat}
 \title{Run cSEM CVPAT}
 \usage{
-pls_cvpat(fit, ...)
+pls_cvpat(fit, fit2 = NULL, ...)
 }
 \arguments{
-\item{fit}{A cSEM-backed fit.}
+\item{fit}{A cSEM-backed fit, or a list of two cSEM-backed fits.}
+
+\item{fit2}{Optional second cSEM-backed fit, when \code{fit} is a single object.}
 
 \item{...}{Passed to \code{cSEM::testCVPAT()}.}
 }
@@ -15,5 +17,7 @@ pls_cvpat(fit, ...)
 Backend test result.
 }
 \description{
-Run cSEM CVPAT
+CVPAT is a \emph{predictive} validity test and therefore needs two models: one
+estimated on an earlier stage of the data and one on a later stage.
+\code{cSEM::testCVPAT()} takes both as \code{.object1} and \code{.object2}.
 }

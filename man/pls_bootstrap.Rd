@@ -28,7 +28,12 @@ pls_bootstrap(
 
 \item{unit}{Resampling unit. \code{cluster} performs cluster bootstrap.}
 
-\item{cluster}{Cluster column when \code{unit='cluster'}.}
+\item{cluster}{For \code{unit = "cluster"}, the \strong{name} of a column in the fitted
+data holding the group labels, given as a single string, for example
+\code{cluster = "farm_id"}. A vector of labels is rejected, because the
+resampling groups are read from the column. Report the number of clusters
+next to the interval: a cluster bootstrap over very few groups can give a
+\strong{narrower} interval than the case bootstrap rather than a wider one.}
 
 \item{parallel}{Logical; native parallelization is currently not automatic.}
 }

@@ -10,6 +10,17 @@
 #' @param n Number of observations.
 #' @param path_values Optional named numeric vector using labels such as
 #'   `"SOIL -> NUTR"`. Unspecified paths default to `0.35`.
+#'
+#'   **These are structural coefficients, not the correlations the engine
+#'   recovers.** The latent score of each endogenous construct is standardized
+#'   after its structural equation, so the implied correlation with a single
+#'   parent is `beta / sqrt(beta^2 + structural_noise^2)`. With the defaults a
+#'   planted `0.60` is recovered near `0.45`, and the gap does not shrink with
+#'   `n`, because it is bias by construction and not sampling noise. Use
+#'   `structural_noise` and `indicator_noise` close to zero when the goal is to
+#'   recover a known truth. The implied correlation matrix is returned in the
+#'   `"implied_cor"` attribute of the result, next to the requested values in
+#'   `"path_values"`, so both are auditable.
 #' @param loading Loading magnitude for reflective indicators.
 #' @param weight Weight magnitude for composite/formative indicators.
 #' @param indicator_noise Standard deviation of indicator noise.
@@ -23,6 +34,7 @@ pls_simulate <- function(model, n = 300L, path_values = NULL, loading = 0.80,
   .pls_validate_model(model)
   n <- as.integer(n)
   if (n < 20L) .pls_abort("n must be at least 20 for this simulation helper.")
+  .pls_st <- .pls_rng_save(); on.exit(.pls_rng_restore(.pls_st), add = TRUE)
   if (!is.null(seed)) set.seed(seed)
   cn <- .pls_construct_names(model)
   p <- .pls_paths_df(model)
@@ -75,9 +87,15 @@ pls_simulate <- function(model, n = 300L, path_values = NULL, loading = 0.80,
   }
   dat <- as.data.frame(out, check.names = FALSE)
   attr(dat, "latent_scores") <- as.data.frame(eta)
+  # The correlations the data actually carry. Because eta is standardized after
+  # each structural equation, these differ from the requested coefficients;
+  # reporting both is what makes a recovery study honest.
+  implied <- stats::cor(eta)
+  attr(dat, "implied_cor") <- implied
   attr(dat, "simulation") <- list(n=n, path_values=path_values, loading=loading,
                                   weight=weight, indicator_noise=indicator_noise,
-                                  structural_noise=structural_noise, seed=seed)
+                                  structural_noise=structural_noise, seed=seed,
+                                  implied_cor=implied)
   dat
 }
 
@@ -137,13 +155,16 @@ pls_validate_cross_engine <- function(model, data, engines=c("native","cSEM"), t
   refp <- ref$native$paths
   refp$key <- paste(refp$from, "->", refp$to)
   rows <- list()
+  ignorados <- character(0)
   for (e in setdiff(names(cmp$fits), "native")) {
     f <- cmp$fits[[e]]
     ext <- .pls_extract_backend_paths(f)
-    if (is.null(ext)) next
-    ext$key <- paste(ext$from, "->", ext$to)
+    # Guard on rows, not only on NULL: an adapter returning a zero-row frame
+    # would otherwise fall through and fail with a confusing message.
+    if (is.null(ext) || !nrow(ext)) { ignorados <- c(ignorados, e); next }
+    ext$key <- paste0(ext$from, " -> ", ext$to)
     keys <- intersect(refp$key, ext$key)
-    if (!length(keys)) next
+    if (!length(keys)) { ignorados <- c(ignorados, e); next }
     rr <- refp[match(keys, refp$key), ]
     ee <- ext[match(keys, ext$key), ]
     rows[[e]] <- data.frame(
@@ -153,8 +174,16 @@ pls_validate_cross_engine <- function(model, data, engines=c("native","cSEM"), t
       stringsAsFactors=FALSE
     )
   }
+  if (!length(rows) && length(ignorados)) {
+    .pls_abort(paste0(
+      "No engine produced comparable path estimates against 'native'. Skipped: ",
+      paste(ignorados, collapse = ", "), ". ",
+      "The reference engine is the native one; check that the other engines expose ",
+      "path estimates in a comparable shape."))
+  }
   structure(list(status=cmp$status, comparison=if(length(rows)) do.call(rbind,rows) else data.frame(),
-                 tolerance=tolerance), class="plssem_cross_validation")
+                 tolerance=tolerance, skipped=ignorados),
+            class="plssem_cross_validation")
 }
 
 .pls_extract_backend_paths <- function(fit) {
@@ -166,22 +195,40 @@ pls_validate_cross_engine <- function(model, data, engines=c("native","cSEM"), t
       return(data.frame(from=colnames(pc)[z[,2]], to=rownames(pc)[z[,1]], estimate=pc[z]))
     }
   }
-  # cSEM result structures can vary by release. Prefer its canonical estimates table when present.
+  # cSEM result structures vary by release. cSEM <= 0.6 returns a square matrix
+  # whose dimnames are the constructs; later or other backends may return a long
+  # table. Support both, and return NULL when nothing comparable is available so
+  # callers can skip instead of receiving an empty frame.
   if (fit$engine == "cSEM") {
     obj <- fit$backend
     cand <- try(obj$Estimates$Path_estimates, silent=TRUE)
     if (!inherits(cand,"try-error") && !is.null(cand)) {
-      x <- as.data.frame(cand)
+      if (is.matrix(cand) || is.array(cand)) {
+        rn <- rownames(cand); cn2 <- colnames(cand)
+        if (!is.null(rn) && !is.null(cn2)) {
+          z <- which(cand != 0, arr.ind = TRUE)
+          if (nrow(z)) {
+            return(data.frame(from = cn2[z[, 2L]], to = rn[z[, 1L]],
+                              estimate = as.numeric(cand[z]),
+                              stringsAsFactors = FALSE))
+          }
+        }
+      }
+      x <- as.data.frame(cand, check.names = FALSE)
       nms <- tolower(names(x))
-      estcol <- which(nms %in% c("estimate","estimates","value"))[1]
-      namecol <- which(nms %in% c("name","path","relationship"))[1]
-      if (length(estcol) && length(namecol)) {
+      estcol <- match(nms, c("estimate","estimates","value"))[1]
+      namecol <- match(nms, c("name","path","relationship"))[1]
+      # is.na(), not length(): length(NA) is 1 and would let the guard pass.
+      if (!is.na(estcol) && !is.na(namecol)) {
         lab <- as.character(x[[namecol]])
         parts <- strsplit(gsub("~", "->", lab, fixed=TRUE), "->", fixed=TRUE)
         ok <- lengths(parts) == 2
-        return(data.frame(from=trimws(vapply(parts[ok],`[`,character(1),1)),
-                          to=trimws(vapply(parts[ok],`[`,character(1),2)),
-                          estimate=as.numeric(x[[estcol]][ok])))
+        if (any(ok)) {
+          return(data.frame(from=trimws(vapply(parts[ok],`[`,character(1),1)),
+                            to=trimws(vapply(parts[ok],`[`,character(1),2)),
+                            estimate=as.numeric(x[[estcol]][ok]),
+                            stringsAsFactors=FALSE))
+        }
       }
     }
   }

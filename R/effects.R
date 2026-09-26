@@ -79,13 +79,29 @@ pls_moderation_test <- function(fit, predictor, moderator, outcome, boot = TRUE,
                                 R = 1999L, seed = NULL, level = 0.95) {
   .pls_check_fit(fit); if(fit$engine!="native") .pls_abort("Native moderation sensitivity analysis requires engine='native'.")
   S <- fit$native$scores
+  # The interaction is built by multiplication on the construct scores, so a
+  # non-numeric moderator yields a zero-row interaction and a later, unrelated
+  # "differing number of rows" message. Fail here, where the cause is visible.
+  for (v in c(predictor, moderator, outcome)) {
+    if (!v %in% names(S)) {
+      .pls_abort("Construct '", v, "' is not part of the fitted model. Available: ",
+                 paste(names(S), collapse = ", "), ".")
+    }
+    if (!is.numeric(S[[v]])) {
+      .pls_abort(paste0("Construct '", v, "' is not numeric, so the interaction term ",
+                        "cannot be built. Encode a categorical moderator first, ",
+                        "for example irr <- as.numeric(system == \"irrigated\"), ",
+                        "and declare it as a numeric construct."))
+    }
+  }
   dat <- data.frame(y=S[[outcome]], x=S[[predictor]], z=S[[moderator]])
   dat$xz <- dat$x*dat$z
   lm0 <- stats::lm(y ~ x + z + xz, data=dat)
   est <- stats::coef(lm0)
   out <- data.frame(term=names(est), estimate=as.numeric(est), stringsAsFactors=FALSE)
   if (isTRUE(boot)) {
-    if(!is.null(seed)) set.seed(seed); n<-nrow(dat); b<-matrix(NA_real_,R,4)
+  .pls_st <- .pls_rng_save(); on.exit(.pls_rng_restore(.pls_st), add = TRUE)
+    if (!is.null(seed)) set.seed(seed); n<-nrow(dat); b<-matrix(NA_real_,R,4)
     for(i in seq_len(R)){ii<-sample.int(n,n,TRUE); b[i,]<-stats::coef(stats::lm(y~x+z+xz,data=dat[ii,]))}
     a<-(1-level)/2; ci<-t(apply(b,2,.pls_quantile,probs=c(a,1-a)))
     out$conf_low<-ci[,1]; out$conf_high<-ci[,2]
@@ -106,6 +122,7 @@ pls_moderation_test <- function(fit, predictor, moderator, outcome, boot = TRUE,
 #' @export
 pls_nonlinear_test <- function(fit, predictor, outcome, degree=2L, boot=TRUE, R=1999L, seed=NULL) {
   .pls_check_fit(fit); if(fit$engine!="native") .pls_abort("Native nonlinear sensitivity analysis requires engine='native'.")
+  .pls_st <- .pls_rng_save(); on.exit(.pls_rng_restore(.pls_st), add = TRUE)
   S<-fit$native$scores; dat<-data.frame(y=S[[outcome]],x=S[[predictor]])
   f<-stats::as.formula(paste0("y ~ poly(x, ",as.integer(degree),", raw=TRUE)")); lm0<-stats::lm(f,dat)
   est<-stats::coef(lm0); out<-data.frame(term=names(est),estimate=as.numeric(est))

@@ -28,6 +28,7 @@ pls_predict <- function(fit, folds = 10L, repeats = 10L, seed = NULL) {
   if (fit$engine == "cSEM") return(stats::predict(fit$backend))
   if (fit$engine != "native") .pls_abort("Unified prediction currently supports native and cSEM engines.")
   n <- nrow(fit$data); folds <- min(as.integer(folds), n); repeats <- as.integer(repeats)
+  .pls_st <- .pls_rng_save(); on.exit(.pls_rng_restore(.pls_st), add = TRUE)
   if (!is.null(seed)) set.seed(seed)
   targets <- .pls_endogenous(fit$model); rows <- list(); rr <- 0L
   for (r in seq_len(repeats)) {

@@ -4,16 +4,27 @@
 \alias{pls_mgd}
 \title{Test multigroup differences using cSEM}
 \usage{
-pls_mgd(fit, ...)
+pls_mgd(model, data, group, ...)
 }
 \arguments{
-\item{fit}{A cSEM multigroup fit.}
+\item{model}{A \code{plssem_model} estimated once per group.}
 
-\item{...}{Passed to \code{cSEM::testMGD()}.}
+\item{data}{Data frame containing the grouping column.}
+
+\item{group}{Name of the column holding the group labels. At least two
+distinct levels are required.}
+
+\item{...}{Additional arguments passed to \code{cSEM::csem()} and
+\code{cSEM::testMGD()}.}
 }
 \value{
 Multigroup-difference result.
 }
 \description{
-Test multigroup differences using cSEM
+MGD compares structural parameters \strong{between groups}, so it needs a model
+estimated per group. cSEM produces the required \code{cSEMResults_multi} object
+when it receives a \emph{list} of data frames, which is what this function does;
+passing a single fitted model makes cSEM answer "At least two groups
+required". The signature mirrors \code{\link[=pls_mga]{pls_mga()}}, which does the same split with
+the native engine.
 }

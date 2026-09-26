@@ -54,13 +54,31 @@ pls_csem_assess <- function(fit, ...) {
 }
 
 #' Run cSEM CVPAT
-#' @param fit A cSEM-backed fit.
+#'
+#' CVPAT is a *predictive* validity test and therefore needs two models: one
+#' estimated on an earlier stage of the data and one on a later stage.
+#' `cSEM::testCVPAT()` takes both as `.object1` and `.object2`.
+#'
+#' @param fit A cSEM-backed fit, or a list of two cSEM-backed fits.
+#' @param fit2 Optional second cSEM-backed fit, when `fit` is a single object.
 #' @param ... Passed to `cSEM::testCVPAT()`.
 #' @return Backend test result.
 #' @export
-pls_cvpat <- function(fit, ...) {
-  .pls_check_fit(fit); if (fit$engine != "cSEM") .pls_abort("CVPAT currently requires a cSEM-backed fit.")
-  cSEM::testCVPAT(fit$backend, ...)
+pls_cvpat <- function(fit, fit2 = NULL, ...) {
+  if (is.list(fit) && !inherits(fit, "plssem_fit")) {
+    fit2 <- fit[[2]]
+    fit  <- fit[[1]]
+  }
+  .pls_check_fit(fit)
+  if (fit$engine != "cSEM") .pls_abort("CVPAT currently requires a cSEM-backed fit.")
+  if (is.null(fit2)) {
+    .pls_abort(paste(
+      "CVPAT compares predictive validity across two data stages and needs two fits.",
+      "Call pls_cvpat(fit_early, fit_late) or pls_cvpat(list(fit_early, fit_late))."))
+  }
+  .pls_check_fit(fit2)
+  if (fit2$engine != "cSEM") .pls_abort("Both CVPAT fits must be cSEM-backed.")
+  cSEM::testCVPAT(fit$backend, fit2$backend, ...)
 }
 
 #' Run MICOM using cSEM
@@ -76,23 +94,75 @@ pls_micom <- function(fit, R = 4999L, seed = NULL, ...) {
 }
 
 #' Test multigroup differences using cSEM
-#' @param fit A cSEM multigroup fit.
-#' @param ... Passed to `cSEM::testMGD()`.
+#'
+#' MGD compares structural parameters **between groups**, so it needs a model
+#' estimated per group. cSEM produces the required `cSEMResults_multi` object
+#' when it receives a *list* of data frames, which is what this function does;
+#' passing a single fitted model makes cSEM answer "At least two groups
+#' required". The signature mirrors [pls_mga()], which does the same split with
+#' the native engine.
+#'
+#' @param model A `plssem_model` estimated once per group.
+#' @param data Data frame containing the grouping column.
+#' @param group Name of the column holding the group labels. At least two
+#'   distinct levels are required.
+#' @param ... Additional arguments passed to `cSEM::csem()` and
+#'   `cSEM::testMGD()`.
 #' @return Multigroup-difference result.
 #' @export
-pls_mgd <- function(fit, ...) {
-  .pls_check_fit(fit); if (fit$engine != "cSEM") .pls_abort("MGD currently requires engine='cSEM'.")
-  cSEM::testMGD(fit$backend, ...)
+pls_mgd <- function(model, data, group, ...) {
+  if (inherits(model, "plssem_fit")) {
+    .pls_abort(paste(
+      "pls_mgd() takes the model, the data and the grouping column, not a fitted",
+      "object: MGD re-estimates one model per group. Call",
+      "pls_mgd(model, data, group = 'region'). For a native two-group comparison",
+      "see pls_mga()."))
+  }
+  .pls_require("cSEM", "for multigroup difference testing.")
+  .pls_validate_model(model)
+  if (!is.character(group) || length(group) != 1L) {
+    .pls_abort("group must be the name of a single column, for example group = 'region'.")
+  }
+  if (!group %in% names(data)) {
+    .pls_abort(paste0("Column '", group, "' is not in the data. Available: ",
+                      paste(names(data), collapse = ", "), "."))
+  }
+  levs <- unique(data[[group]])
+  if (length(levs) < 2L) {
+    .pls_abort(paste0("MGD needs at least two groups. Column '", group,
+                      "' has a single level: ", as.character(levs[1]), "."))
+  }
+  por_grupo <- stats::setNames(
+    lapply(levs, function(g) data[data[[group]] == g, , drop = FALSE]),
+    as.character(levs)
+  )
+  res <- cSEM::csem(por_grupo, pls_syntax(model, dialect = "cSEM"), ...)
+  cSEM::testMGD(res, ...)
 }
 
 #' Test endogeneity using the cSEM Hausman workflow
-#' @param fit A cSEM-backed fit.
+#'
+#' The Hausman test needs an **instrumented** model, and cSEM takes the
+#' instrument information at estimation time, not at test time. There is
+#' therefore no argument to `pls_endogeneity()` that can supply instruments
+#' after the fact; the fit must already contain them.
+#'
+#' @param fit A cSEM-backed fit estimated with an instrumented specification.
 #' @param ... Passed to `cSEM::testHausman()`.
 #' @return Backend test result.
 #' @export
 pls_endogeneity <- function(fit, ...) {
   .pls_check_fit(fit); if (fit$engine != "cSEM") .pls_abort("Endogeneity testing currently requires engine='cSEM'.")
-  cSEM::testHausman(fit$backend, ...)
+  res <- try(cSEM::testHausman(fit$backend, ...), silent = TRUE)
+  if (inherits(res, "try-error") &&
+      grepl("Instruments required", conditionMessage(attr(res, "condition")), fixed = TRUE)) {
+    .pls_abort(paste(
+      "The Hausman test needs an instrumented model, and cSEM records the",
+      "instruments at estimation time, so no argument can add them here.",
+      "Re-estimate with pls_fit(..., engine = 'cSEM') using an instrumented",
+      "specification, then call pls_endogeneity() on that fit."))
+  }
+  res
 }
 
 #' Importance-performance map analysis using cSEM

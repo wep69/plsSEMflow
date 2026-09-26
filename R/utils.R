@@ -10,6 +10,31 @@
   warning(paste0(...), call. = call.)
 }
 
+# Snapshot and restore the caller's RNG state, so that an exported function
+# which accepts `seed` does not silently rewind the stream of the code that
+# called it. Without this, a Monte Carlo loop becomes dependent on how many
+# draws happened before it, and every repetition has to be told its own seed
+# just to stay independent.
+#
+# Usage inside the exported function:
+#   st <- .pls_rng_save(); on.exit(.pls_rng_restore(st), add = TRUE)
+#   if (!is.null(seed)) set.seed(seed)
+.pls_rng_save <- function() {
+  if (!exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) return(NULL)
+  get(".Random.seed", envir = .GlobalEnv)
+}
+
+.pls_rng_restore <- function(state) {
+  if (is.null(state)) {
+    if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+      rm(".Random.seed", envir = .GlobalEnv)
+    }
+  } else {
+    assign(".Random.seed", state, envir = .GlobalEnv)
+  }
+  invisible(NULL)
+}
+
 .pls_require <- function(pkg, reason = NULL) {
   if (!requireNamespace(pkg, quietly = TRUE)) {
     msg <- paste0("Optional package '", pkg, "' is required")

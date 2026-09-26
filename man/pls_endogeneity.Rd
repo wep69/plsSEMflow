@@ -7,7 +7,7 @@
 pls_endogeneity(fit, ...)
 }
 \arguments{
-\item{fit}{A cSEM-backed fit.}
+\item{fit}{A cSEM-backed fit estimated with an instrumented specification.}
 
 \item{...}{Passed to \code{cSEM::testHausman()}.}
 }
@@ -15,5 +15,8 @@ pls_endogeneity(fit, ...)
 Backend test result.
 }
 \description{
-Test endogeneity using the cSEM Hausman workflow
+The Hausman test needs an \strong{instrumented} model, and cSEM takes the
+instrument information at estimation time, not at test time. There is
+therefore no argument to \code{pls_endogeneity()} that can supply instruments
+after the fact; the fit must already contain them.
 }

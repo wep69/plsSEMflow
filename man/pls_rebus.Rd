@@ -4,13 +4,27 @@
 \alias{pls_rebus}
 \title{REBUS-PLS unobserved heterogeneity analysis}
 \usage{
-pls_rebus(fit, data = NULL, stop_crit = 0.005, iter_max = 100L, ...)
+pls_rebus(
+  fit,
+  data = NULL,
+  n_classes = NULL,
+  stop_crit = 0.005,
+  iter_max = 100L,
+  ...
+)
 }
 \arguments{
 \item{fit}{A \code{plssem_fit} estimated with \code{engine = "plspm"}.}
 
 \item{data}{Optional data frame supplied to \code{plspm::rebus.pls()} when
 required by the installed plspm version.}
+
+\item{n_classes}{Number of unobserved classes. \code{plspm::rebus.pls()} does not
+accept this as an argument and, when it is missing, \strong{reads it from the
+console with \code{scan(file = "")}}. In a non-interactive session (knit,
+Quarto, CI, \code{Rscript}) that call blocks or consumes unrelated input, so
+supplying \code{n_classes} here avoids it entirely. In an interactive session
+\code{NULL} keeps the original prompt.}
 
 \item{stop_crit}{Convergence criterion for REBUS iterations.}
 

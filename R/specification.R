@@ -157,6 +157,12 @@ pls_model <- function(measurement, structural, name = NULL) {
 #' @param model A `plssem_model`.
 #' @param higher_order Include higher-order definitions.
 #' @param dialect Syntax dialect: `cSEM`, `plssem`, or `lavaan`.
+#'
+#'   The argument only changes the **higher-order** construct line. For a model
+#'   with no higher-order construct the three dialects return identical text,
+#'   which you can confirm with `identical()`. When a higher-order construct is
+#'   present, `cSEM` writes the two-step operator `<~` and `plssem` and `lavaan`
+#'   write `=~`; structural and measurement lines are the same in all three.
 #' @return Character string containing model syntax.
 #' @export
 pls_syntax <- function(model, higher_order = TRUE,

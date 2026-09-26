@@ -11,7 +11,13 @@ pls_syntax(model, higher_order = TRUE, dialect = c("cSEM", "plssem", "lavaan"))
 
 \item{higher_order}{Include higher-order definitions.}
 
-\item{dialect}{Syntax dialect: \code{cSEM}, \code{plssem}, or \code{lavaan}.}
+\item{dialect}{Syntax dialect: \code{cSEM}, \code{plssem}, or \code{lavaan}.
+
+The argument only changes the \strong{higher-order} construct line. For a model
+with no higher-order construct the three dialects return identical text,
+which you can confirm with \code{identical()}. When a higher-order construct is
+present, \code{cSEM} writes the two-step operator \verb{<~} and \code{plssem} and \code{lavaan}
+write \verb{=~}; structural and measurement lines are the same in all three.}
 }
 \value{
 Character string containing model syntax.

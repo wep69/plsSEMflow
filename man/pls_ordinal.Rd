@@ -4,7 +4,14 @@
 \alias{pls_ordinal}
 \title{Fit an ordinal PLS/PLSc model using plssem}
 \usage{
-pls_ordinal(syntax, data, ordered, bootstrap = TRUE, R = 999L, ...)
+pls_ordinal(
+  syntax,
+  data,
+  ordered = character(0),
+  bootstrap = TRUE,
+  R = 999L,
+  ...
+)
 }
 \arguments{
 \item{syntax}{Model syntax accepted by \code{plssem::pls()}, including random effects.}

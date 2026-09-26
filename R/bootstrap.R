@@ -30,7 +30,12 @@
 #' @param level Confidence level.
 #' @param interval `percentile`, `basic`, or `bca`.
 #' @param unit Resampling unit. `cluster` performs cluster bootstrap.
-#' @param cluster Cluster column when `unit='cluster'`.
+#' @param cluster For `unit = "cluster"`, the **name** of a column in the fitted
+#'   data holding the group labels, given as a single string, for example
+#'   `cluster = "farm_id"`. A vector of labels is rejected, because the
+#'   resampling groups are read from the column. Report the number of clusters
+#'   next to the interval: a cluster bootstrap over very few groups can give a
+#'   **narrower** interval than the case bootstrap rather than a wider one.
 #' @param parallel Logical; native parallelization is currently not automatic.
 #' @return A `plssem_bootstrap` object containing draws and confidence intervals.
 #' @export
@@ -39,6 +44,7 @@ pls_bootstrap <- function(fit, R = 999L, seed = NULL, level = 0.95,
                           unit = c("case", "cluster"), cluster = NULL, parallel = FALSE) {
   .pls_check_fit(fit); interval <- match.arg(interval); unit <- match.arg(unit)
   R <- as.integer(R); if (R < 20L) .pls_warn("Very small R: confidence intervals may be unstable. This may be acceptable only for code demonstrations.")
+  .pls_st <- .pls_rng_save(); on.exit(.pls_rng_restore(.pls_st), add = TRUE)
   if (!is.null(seed)) set.seed(seed)
   if (fit$engine == "cSEM") {
     res <- cSEM::resamplecSEMResults(fit$backend, .resample_method = "bootstrap", .R = R, .seed = seed)
@@ -53,8 +59,28 @@ pls_bootstrap <- function(fit, R = 999L, seed = NULL, level = 0.95,
   theta0 <- .pls_boot_stat_native(fit, seq_len(n))
   draws <- matrix(NA_real_, nrow = R, ncol = length(theta0), dimnames = list(NULL, names(theta0)))
   if (unit == "cluster") {
-    if (is.null(cluster) || !cluster %in% names(fit$data)) .pls_abort("Provide a valid cluster column for cluster bootstrap.")
+    # Validate the *type* before using it. `%in%` with a vector on the left
+    # returns a vector, and `!vector` inside `if` fails with the internal
+    # "coercion to logical(1)" message, which says nothing about clusters.
+    if (is.null(cluster)) {
+      .pls_abort(paste(
+        "Cluster bootstrap needs the NAME of a column in the data, for example",
+        "cluster = 'farm_id'. It does not take the vector of group labels."))
+    }
+    if (!is.character(cluster) || length(cluster) != 1L) {
+      .pls_abort(paste(
+        "cluster must be a single column name given as a character string,",
+        "for example cluster = 'farm_id'. A vector of group labels was given;",
+        "the resampling groups are read from the column inside the data."))
+    }
+    if (!cluster %in% names(fit$data)) {
+      .pls_abort(paste0("Column '", cluster, "' is not in the data. Available: ",
+                        paste(names(fit$data), collapse = ", "), "."))
+    }
     cl <- unique(fit$data[[cluster]])
+    if (length(cl) < 2L) {
+      .pls_abort("Cluster bootstrap needs at least two distinct groups in the column.")
+    }
   }
   for (b in seq_len(R)) {
     if (unit == "case") {
@@ -93,7 +119,12 @@ pls_bootstrap <- function(fit, R = 999L, seed = NULL, level = 0.95,
                     boot_se = apply(draws, 2, stats::sd, na.rm = TRUE),
                     conf_low = ci[, 1], conf_high = ci[, 2], stringsAsFactors = FALSE)
   structure(list(engine = "native", draws = draws, table = tab, R = R, seed = seed,
-                 level = level, interval = interval, unit = unit, cluster = cluster,
+                 level = level, interval = interval, unit = unit,
+                 # Record the grouping actually used, not the column name, so the
+                 # object can be audited. The name is kept separately.
+                 cluster = if (identical(unit, "cluster")) fit$data[[cluster]] else NULL,
+                 cluster_name = if (identical(unit, "cluster")) cluster else NULL,
+                 n_clusters = if (identical(unit, "cluster")) length(cl) else NULL,
                  convergence_fraction = mean(stats::complete.cases(draws))), class = "plssem_bootstrap")
 }
 
